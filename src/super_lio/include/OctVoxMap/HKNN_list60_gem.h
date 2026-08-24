@@ -16,7 +16,7 @@ static const std::array<float, 6> orders_min_dis2 = {
 
 
 alignas(16) static const std::array<Eigen::Vector3i, 60> HKNN_neighbor_voxel = 
-{
+{//实际上代码里只用了前 8 个槽位
   Eigen::Vector3i(0, 0, 0), Eigen::Vector3i(0, -1, 0), Eigen::Vector3i(0, 0, -1), Eigen::Vector3i(-1, 0, 0), Eigen::Vector3i(-1, 0, -1), Eigen::Vector3i(0, -1, -1), 
   Eigen::Vector3i(-1, -1, 0), Eigen::Vector3i(-1, -1, -1), Eigen::Vector3i(1, 0, 0), Eigen::Vector3i(0, 1, 0), Eigen::Vector3i(0, 0, 1), Eigen::Vector3i(0, -1, 1), 
   Eigen::Vector3i(1, -1, 0), Eigen::Vector3i(1, 0, -1), Eigen::Vector3i(0, 1, -1), Eigen::Vector3i(-1, 1, 0), Eigen::Vector3i(-1, 0, 1), Eigen::Vector3i(-1, -1, 1), 

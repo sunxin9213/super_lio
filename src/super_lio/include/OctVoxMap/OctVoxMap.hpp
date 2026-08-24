@@ -54,7 +54,7 @@ public:
       
       if (not_full) {
         count++;
-        if (dist2 > max_dist2_) {
+        if (dist2 > max_dist2_) {//到这里,5个点的距离,一定是所有进入该voxel过程中所有的点中,距离最近的5个,但是id还没有排序
           max_dist2_ = dist2;
           worst_ = insert_idx;
         }
@@ -65,11 +65,11 @@ public:
   }
 
 private:
-  inline void update_worst_unrolled() {
+  inline void update_worst_unrolled() {//选取前5个点中,距离最远的点作为max_dist2_
     float d0 = dist2_[0], d1 = dist2_[1], d2 = dist2_[2], d3 = dist2_[3], d4 = dist2_[4];
     
     uint8_t idx01 = d0 > d1 ? 0 : 1;
-    float max01 = d0 > d1 ? d0 : d1;
+    float max01 = d0 > d1 ? d0 : d1;//选择id 0和1中距离远的点
     
     uint8_t idx23 = d2 > d3 ? 2 : 3;
     float max23 = d2 > d3 ? d2 : d3;
@@ -87,7 +87,7 @@ public:
 
 
 template<typename Point>
-class OctVox{
+class OctVox{//单个voxel的数据结构,每个voxel分为8个子voxel,子voxel内的点为最多20个点的均值
 public:
   OctVox(const Point& pt, uint8_t local_idx)
   {
@@ -101,14 +101,14 @@ public:
   void AddPoint(const Point& pt, uint8_t local_idx) {
     uint8_t& count = counts_[local_idx];
     Point& stored_point = points_[local_idx];
-    if(count == UNINIT_MASK) {
+    if(count == UNINIT_MASK) {//如果之前该子voxel还没有填充过
       stored_point = pt;
-      count = 1;
+      count = 1;//该子voxel的count设置为1
       return;
     }
 
-    if(count >= MAX_POINTS_PER_SUBVOXEL) return;
-    if ((pt - stored_point).squaredNorm() > DISTANCE_THRESHOLD_SQ) return;
+    if(count >= MAX_POINTS_PER_SUBVOXEL) return;//每个子voxel最大点数量
+    if ((pt - stored_point).squaredNorm() > DISTANCE_THRESHOLD_SQ) return;//距离已经存储点平均值距离超过0.1m则不存储
 
     stored_point = (stored_point * count + pt) / (count + 1);
     ++count;
@@ -124,7 +124,7 @@ public:
   static constexpr uint8_t MAX_POINTS_PER_SUBVOXEL = 20;
   static constexpr double DISTANCE_THRESHOLD_SQ = 0.1 * 0.1;
 
-  std::array<uint8_t, 8> counts_;
+  std::array<uint8_t, 8> counts_;//8个uint8的数组
   std::array<Point, 8> points_;
 };
 
@@ -228,7 +228,7 @@ private:
   bool reset_map_ = false;
   int reset_map_count_ = 0;
 
-  const KEY nearby_grids_[19] = {
+  const KEY nearby_grids_[19] = {//去掉8个斜角的voxel
     KEY(0, 0, 0),
     KEY(-1, -1, 0), KEY(-1, 0, 0), KEY(-1, 1, 0), 
     KEY(0, -1, 0), KEY(0, 1, 0), 
@@ -252,8 +252,8 @@ private:
   using DATA_LIST = std::list<std::pair<KEY, OctVoxType>>;
   using DATA_ITER = typename DATA_LIST::iterator;
 
-  DATA_LIST data_;
-  tsl::robin_map<KEY, DATA_ITER, HASH_VEC> grids_;
+  DATA_LIST data_;//整条链就是"地图当前所有体素"，顺序是最近访问在前、最旧在尾。选它不为别的，就为 LRU：链表的头插 / 尾删 / 挪动都是 O ( 1 ) O(1) O(1)
+  tsl::robin_map<KEY, DATA_ITER, HASH_VEC> grids_;//是哈希表（索引），不存数据，只存 key → 迭代器。这个 DATA_ITER 迭代器就是一个指向链表节点的指针——用体素坐标 O ( 1 ) O(1) O(1) 查到指针，再顺指针一步摸到数据
 
   std::vector<uint8_t*> flat_search_ptrs_;
   int group_idx_max_;
@@ -275,7 +275,7 @@ void OctVoxMap<Point, Scalar>::insert(const Points& cloud_world){
   for(auto& pt : cloud_world){
     KEY fine_key = (pt * sub_inv_resolution_).array().floor().template cast<int>();
     KEY key;
-    key[0] = fine_key[0] >> 1;
+    key[0] = fine_key[0] >> 1;//除以2后取整,获得大voxel的id
     key[1] = fine_key[1] >> 1;
     key[2] = fine_key[2] >> 1;
 
@@ -285,19 +285,25 @@ void OctVoxMap<Point, Scalar>::insert(const Points& cloud_world){
     uint8_t local_idx = (dz << 2) | (dy << 1) | dx;
 
     auto iter = grids_.find(key);
-    if (iter == grids_.end()) {
+    if (iter == grids_.end()) {//如果当前大体素内没有
       data_.emplace_front(std::piecewise_construct,
         std::forward_as_tuple(key),
         std::forward_as_tuple(pt, local_idx));
+      /*std::piecewise_construct 是什么？
+当 list 里存的是 std::pair，你想分别给 first 和 second 传构造参数时，需要告诉编译器：
+"我要分别构造 pair 的 first 和 second，不是传一个现成的 pair。"
+std::piecewise_construct 就是这个"信号量"。*/
+/*std::piecewise_construct 是一个空结构体标签，告诉 std::pair 的构造函数：
+"后面跟的两个 std::tuple 分别用来构造 first 和 second，不要当成值来用。"*/
       grids_.insert(std::make_pair(key, data_.begin()));
       
       if (data_.size() >= capacity_) {
-        grids_.erase(data_.back().first);
+        grids_.erase(data_.back().first);//LRU
         data_.pop_back();
       }
     } else {
-      iter->second->second.AddPoint(pt, local_idx);
-      data_.splice(data_.begin(), data_, iter->second);
+      iter->second->second.AddPoint(pt, local_idx);//单个体素内添加点
+      data_.splice(data_.begin(), data_, iter->second);//把一个iter移动到头部去
     }
   }
 }
@@ -305,8 +311,8 @@ void OctVoxMap<Point, Scalar>::insert(const Points& cloud_world){
 
 template<typename Point, typename Scalar>
 void OctVoxMap<Point, Scalar>::getTopK(const Point& point, KNNHeapType& top_K) const {
-  const KEY fine_key = (point * sub_inv_resolution_).array().floor().template cast<int>();
-  KEY key;
+  const KEY fine_key = (point * sub_inv_resolution_).array().floor().template cast<int>();//当前点转换成子体素的id
+  KEY key;//大体素id
   key[0] = fine_key[0] >> 1;
   key[1] = fine_key[1] >> 1;
   key[2] = fine_key[2] >> 1;
@@ -314,21 +320,21 @@ void OctVoxMap<Point, Scalar>::getTopK(const Point& point, KNNHeapType& top_K) c
   const int dx = fine_key[0] & 1;
   const int dy = fine_key[1] & 1;
   const int dz = fine_key[2] & 1;
-  const int local_idx = (dz << 2) | (dy << 1) | dx;
+  const int local_idx = (dz << 2) | (dy << 1) | dx;//在大体素id内的局部id
   const KEY mirror_axis = KEY(1 - (dx << 1), 1 - (dy << 1), 1 - (dz << 1));
   
-  const int pre_voxel_ptr_size = 8;
-  OctVoxType* top_voxels_2_search[pre_voxel_ptr_size];
+  const int pre_voxel_ptr_size = 8;//实际上代码里只用了前 8 个槽位
+  OctVoxType* top_voxels_2_search[pre_voxel_ptr_size];//8个voxel指针的数组
   std::fill_n(top_voxels_2_search, pre_voxel_ptr_size, nullptr);
   
   for(uint8_t i = 0; i < pre_voxel_ptr_size; ++i)
   {
-    KEY delta_key = mirror_axis.cwiseProduct(HKNN_neighbor_voxel[i]);
+    KEY delta_key = mirror_axis.cwiseProduct(HKNN_neighbor_voxel[i]);//逐元素乘法操作
     KEY n_key = key + delta_key;
     if (auto iter = grids_.find(n_key); iter != grids_.end()) {
-      top_voxels_2_search[i] = &iter->second->second;
+      top_voxels_2_search[i] = &iter->second->second;//顶层大格子体素
     }
-  }
+  }//先做应该在哪个大体素上搜索的计算
 
   Point __sub_point;
 
@@ -342,7 +348,7 @@ void OctVoxMap<Point, Scalar>::getTopK(const Point& point, KNNHeapType& top_K) c
       
       if(neighbor_idx < pre_voxel_ptr_size)
       {
-        OctVoxType* voxel_ptr = top_voxels_2_search[neighbor_idx];
+        OctVoxType* voxel_ptr = top_voxels_2_search[neighbor_idx];//要在这个大体素里面搜一下
         if (voxel_ptr) {
           while (data_size--) {
             uint8_t _local_idx = (*group_it++)^local_idx;
