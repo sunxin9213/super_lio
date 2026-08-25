@@ -140,7 +140,7 @@ bool SuperLIOReLoc::kf_init(){
   static V3 mean_acce = V3::Zero();
   
   /// get init guess from ROS topic.
-  if(flg_get_init_guess_){
+  if(flg_get_init_guess_){//默认值是false
     imu_cout = 0;
     init_frame_count = 0;
     init_obs_data_->clear();
@@ -151,7 +151,7 @@ bool SuperLIOReLoc::kf_init(){
   }
 
   CloudPtr point_cloud_pcl = CloudPtr(new PointCloudType());
-  for(std::size_t i = 0; i < measures_.lidar.pc->size(); i++){
+  for(std::size_t i = 0; i < measures_.lidar.pc->size(); i++){//获取当前点云
     auto p = measures_.lidar.pc->points[i];
     PointType point;
     point.x = p.x;
@@ -198,7 +198,7 @@ bool SuperLIOReLoc::kf_init(){
   init_guess_T.block<3, 1>(0, 3) = init_guess_t_;
 
   pcl::PointCloud<pcl::PointXYZI>::Ptr tmp_src(new pcl::PointCloud<pcl::PointXYZI>());
-  pcl::transformPointCloud(*init_obs_data_, *tmp_src, g_lidar_imu.matrix().cast<float>());
+  pcl::transformPointCloud(*init_obs_data_, *tmp_src, g_lidar_imu.matrix().cast<float>());//将点云转到imu坐标系下
 
   pcl::NormalDistributionsTransform<pcl::PointXYZI, pcl::PointXYZI> ndt;
   ndt.setTransformationEpsilon(1e-4);
@@ -217,7 +217,7 @@ bool SuperLIOReLoc::kf_init(){
 
   ndt.setInputSource(tmp_src);
   icp.setInputSource(tmp_src);
-
+  //先ndt在icp
   pcl::PointCloud<pcl::PointXYZI>::Ptr unused_result(new pcl::PointCloud<pcl::PointXYZI>());
   ndt.align(*unused_result, init_guess_T.matrix().cast<float>());
   icp.align(*unused_result, ndt.getFinalTransformation());

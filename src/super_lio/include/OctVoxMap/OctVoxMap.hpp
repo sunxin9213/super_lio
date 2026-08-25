@@ -317,18 +317,18 @@ void OctVoxMap<Point, Scalar>::getTopK(const Point& point, KNNHeapType& top_K) c
   key[1] = fine_key[1] >> 1;
   key[2] = fine_key[2] >> 1;
 
-  const int dx = fine_key[0] & 1;
+  const int dx = fine_key[0] & 1;//只能是0和1
   const int dy = fine_key[1] & 1;
   const int dz = fine_key[2] & 1;
   const int local_idx = (dz << 2) | (dy << 1) | dx;//在大体素id内的局部id
-  const KEY mirror_axis = KEY(1 - (dx << 1), 1 - (dy << 1), 1 - (dz << 1));
+  const KEY mirror_axis = KEY(1 - (dx << 1), 1 - (dy << 1), 1 - (dz << 1));//1和-1
   
-  const int pre_voxel_ptr_size = 8;//实际上代码里只用了前 8 个槽位
+  const int pre_voxel_ptr_size = 8;
   OctVoxType* top_voxels_2_search[pre_voxel_ptr_size];//8个voxel指针的数组
   std::fill_n(top_voxels_2_search, pre_voxel_ptr_size, nullptr);
   
   for(uint8_t i = 0; i < pre_voxel_ptr_size; ++i)
-  {
+  {//它和 HKNN_neighbor_voxel[i] 做 cwiseProduct 后加到 key 上，得到的是从当前大体素出发、朝向查询点方向的邻居大体素 key 偏移。
     KEY delta_key = mirror_axis.cwiseProduct(HKNN_neighbor_voxel[i]);//逐元素乘法操作
     KEY n_key = key + delta_key;
     if (auto iter = grids_.find(n_key); iter != grids_.end()) {
